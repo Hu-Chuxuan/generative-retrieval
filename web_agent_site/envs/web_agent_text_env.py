@@ -3,7 +3,10 @@ import json
 import random
 import string
 import time
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None
 
 import numpy as np
 
@@ -157,7 +160,7 @@ class WebAgentTextEnv(gym.Env):
                 image_idx = self.ids[image_url]
                 image = self.feats[image_idx]
                 return image
-        return torch.zeros(512)
+        return torch.zeros(512) if torch is not None else None
 
     def get_instruction_text(self):
         """Get corresponding instruction text for current environment session"""
@@ -298,7 +301,7 @@ class SimServer:
         self.base_url = base_url
         self.all_products, self.product_item_dict, self.product_prices, _ = \
             load_products(filepath=file_path, num_products=num_products, human_goals=human_goals)
-        self.search_engine = init_search_engine(num_products=num_products)
+        self.search_engine = init_search_engine(num_products=num_products, all_products=self.all_products)
         self.goals = get_goals(self.all_products, self.product_prices, human_goals)
         self.show_attrs = show_attrs
 

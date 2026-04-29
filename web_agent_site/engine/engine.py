@@ -13,7 +13,6 @@ from tqdm import tqdm
 from rank_bm25 import BM25Okapi
 from flask import render_template_string
 from rich import print
-from pyserini.search.lucene import LuceneSearcher
 
 from web_agent_site.utils import (
     BASE_DIR,
@@ -165,11 +164,10 @@ def get_top_n_product_from_keywords(
         query = ' '.join(keywords[1:]).strip()
         top_n_products = [p for p in all_products if p['query'] == query]
     else:
-        keywords = ' '.join(keywords)
-        hits = search_engine.search(keywords, k=SEARCH_RETURN_N)
-        docs = [search_engine.doc(hit.docid) for hit in hits]
-        top_n_asins = [json.loads(doc.raw())['id'] for doc in docs]
-        top_n_products = [product_item_dict[asin] for asin in top_n_asins if asin in product_item_dict]
+        keywords = ' '.join(keywords).lower().split()
+        scores = search_engine.get_scores(keywords)
+        top_n_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:SEARCH_RETURN_N]
+        top_n_products = [all_products[i] for i in top_n_indices]
     return top_n_products
 
 
@@ -192,19 +190,12 @@ def generate_product_prices(all_products):
     return product_prices
 
 
-def init_search_engine(num_products=None):
-    if num_products == 100:
-        indexes = 'indexes_100'
-    elif num_products == 1000:
-        indexes = 'indexes_1k'
-    elif num_products == 100000:
-        indexes = 'indexes_100k'
-    elif num_products is None:
-        indexes = 'indexes'
-    else:
-        raise NotImplementedError(f'num_products being {num_products} is not supported yet.')
-    search_engine = LuceneSearcher(os.path.join(BASE_DIR, f'../search_engine/{indexes}'))
-    return search_engine
+def init_search_engine(num_products=None, all_products=None):
+    corpus = [
+        (p.get('name', '') + ' ' + p.get('full_description', '') + ' ' + ' '.join(p.get('small_description', []))).lower().split()
+        for p in all_products
+    ]
+    return BM25Okapi(corpus)
 
 
 def clean_product_keys(products):
